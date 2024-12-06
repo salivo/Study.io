@@ -19,7 +19,7 @@ emar rcs libraylib.a rcore.o rshapes.o rtextures.o rtext.o rmodels.o utils.o rau
 ```
 - return to the root of project
 ```console
-cd ../../
+cd ../../../
 ```
 - then build project
 ```console
