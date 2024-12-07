@@ -27,6 +27,49 @@ bool last_key_up = false;
 bool last_key_down = false;
 bool last_key_left = false;
 bool last_key_right = false;
+
+
+class Player {
+private:
+    int id;        // Unique ID for the player
+    float x, y;    // Position of the player
+    std::string name; // Player's name
+
+public:
+    // Constructor to initialize a new player
+    Player(int playerId, float startX, float startY, std::string playerName)
+        : id(playerId), x(startX), y(startY), name(playerName) {}
+
+    // Get player ID
+    int getId() const {
+        return id;
+    }
+
+    // Get player position
+    std::pair<float, float> getPosition() const {
+        return {x, y};
+    }
+
+    // Get player name
+    std::string getName() const {
+        return name;
+    }
+
+    // Move the player by a specified amount
+    void move(float dx, float dy) {
+        x += dx;
+        y += dy;
+    }
+
+    // Print player information
+    void printInfo() const {
+        std::cout << "Player " << id << " (" << name << ") is at position ("
+                  << x << ", " << y << ")." << std::endl;
+    }
+};
+
+
+
 // Log messages from JS
 EM_JS(void, js_send_control, (bool up, bool down, bool left, bool right), {
     console.log("la", up, down, left, right);
