@@ -18,13 +18,13 @@ emcc -c raudio.c -Os -Wall -DPLATFORM_WEB
 emar rcs libraylib.a rcore.o rshapes.o rtextures.o rtext.o rmodels.o utils.o raudio.o
 ```
 add websocketpp
-> go to lib directory and clone
 ```console
+cd ../../
 git clone https://github.com/zaphoyd/websocketpp.git
 ```
 - return to the root of project
 ```console
-cd ../../../
+cd ../
 ```
 - then build project
 ```console
