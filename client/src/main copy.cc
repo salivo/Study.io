@@ -18,6 +18,13 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
+#include <cstdint>
+#include <iostream>
+#include <cstring>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
 
 // Custom Blend Modes
 #define RLGL_SRC_ALPHA 0x0302
@@ -55,7 +62,7 @@ LightInfo lights[MAX_LIGHTS] = { 0 };
 void MoveLight(int slot, float x, float y)
 {
     lights[slot].dirty = true;
-    lights[slot].position.x = x; 
+    lights[slot].position.x = x;
     lights[slot].position.y = y;
 
     // update the cached bounds
@@ -99,7 +106,7 @@ void DrawLightMask(int slot)
 
         // If we are valid, then draw the light radius to the alpha mask
         if (lights[slot].valid) DrawCircleGradient((int)lights[slot].position.x, (int)lights[slot].position.y, lights[slot].outerRadius, ColorAlpha(WHITE, 0), WHITE);
-        
+
         rlDrawRenderBatchActive();
 
         // Cut out the shadows from the light radius by forcing the alpha to maximum
@@ -114,7 +121,7 @@ void DrawLightMask(int slot)
         }
 
         rlDrawRenderBatchActive();
-        
+
         // Go back to normal blend mode
         rlSetBlendMode(BLEND_ALPHA);
 
@@ -156,7 +163,7 @@ bool UpdateLight(int slot, Rectangle* boxes, int count)
         if (!CheckCollisionRecs(lights[slot].bounds, boxes[i])) continue;
 
         // Check the edges that are on the same side we are, and cast shadow volumes out from them
-        
+
         // Top
         Vector2 sp = (Vector2){ boxes[i].x, boxes[i].y };
         Vector2 ep = (Vector2){ boxes[i].x + boxes[i].width, boxes[i].y };
@@ -210,6 +217,19 @@ void SetupBoxes(Rectangle *boxes, int *count)
     *count = MAX_BOXES;
 }
 
+#define MAX_BUILDINGS   100
+
+//------------------------------------------------------------------------------------
+// Program main entry point
+//------------------------------------------------------------------------------------
+
+#define MAX_BUILDINGS   100
+bool key_up = false;
+bool key_down = false;
+bool key_left = false;
+bool key_right = false;
+bool key_atack = false;
+
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
@@ -217,81 +237,114 @@ int main(void)
 {
     // Initialization
     //--------------------------------------------------------------------------------------
-    const int screenWidth = 800;
-    const int screenHeight = 450;
-    
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - top down lights");
+    const int screenWidth = GetScreenWidth();
+    const int screenHeight = GetScreenHeight();
 
-    // Initialize our 'world' of boxes
-    int boxCount = 0;
-    Rectangle boxes[MAX_BOXES] = { 0 };
-    SetupBoxes(boxes, &boxCount);
+    InitWindow(screenWidth, screenHeight, "raylib [core] example - 2d camera");
 
-    // Create a checkerboard ground texture
-    Image img = GenImageChecked(64, 64, 32, 32, DARKBROWN, DARKGRAY);
-    Texture2D backgroundTexture = LoadTextureFromImage(img);
-    UnloadImage(img);
+    Rectangle player = { 400, 280, 40, 40 };
+    Rectangle buildings[MAX_BUILDINGS] = { 0 };
+    Color buildColors[MAX_BUILDINGS] = { 0 };
 
-    // Create a global light mask to hold all the blended lights
-    RenderTexture lightMask = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
+    int spacing = 0;
 
-    // Setup initial light
-    SetupLight(0, 600, 400, 300);
-    int nextLight = 1;
-
-    bool showLines = false;
-
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-    //--------------------------------------------------------------------------------------
-
-    // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    for (int i = 0; i < MAX_BUILDINGS; i++)
     {
+        buildings[i].width = (float)GetRandomValue(50, 200);
+        buildings[i].height = (float)GetRandomValue(100, 800);
+        buildings[i].y = screenHeight - 130.0f - buildings[i].height;
+        buildings[i].x = -6000.0f + spacing;
+
+        spacing += (int)buildings[i].width;
+
+        buildColors[i] = (Color){ static_cast<unsigned char>(GetRandomValue(200, 240)), static_cast<unsigned char>(GetRandomValue(200, 240)), static_cast<unsigned char>(GetRandomValue(200, 250)), 255 };
+    }
+
+    Camera2D camera = { 0 };
+    camera.target = (Vector2){ player.x + 20.0f, player.y + 20.0f };
+    camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
+
+    SetTargetFPS(60);                   // Set our game to run at 60 frames-per-second
+    //--------------------------------------------------------------------------------------
+    uint8_t keys_tap_saved = 0b00000000;
+    // Main game loop
+    while (!WindowShouldClose())        // Detect window close button or ESC key
+    {
+
         // Update
         //----------------------------------------------------------------------------------
-        // Drag light 0
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) MoveLight(0, GetMousePosition().x, GetMousePosition().y);
+        // Player movement
+         // For send player`s moeves to server
+        uint8_t keys_tap_input = keys_tap_saved;
 
-        // Make a new light
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && (nextLight < MAX_LIGHTS))
+        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
         {
-            SetupLight(nextLight, GetMousePosition().x, GetMousePosition().y, 200);
-            nextLight++;
+            key_right = true;
+        }
+        else if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+        {
+            key_left = true;
+        }
+        else if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
+        {
+            key_up = true;
+        }
+        else if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
+        {
+            key_down = true;
+        }
+        else if (IsKeyUp(KEY_RIGHT) || IsKeyUp(KEY_D))
+        {
+            key_right = false;
+        }
+        else if (IsKeyUp(KEY_LEFT) || IsKeyUp(KEY_A))
+        {
+            key_left = false;
+        }
+        else if (IsKeyUp(KEY_UP) || IsKeyUp(KEY_W))
+        {
+            key_up = false;
+        }
+        else if (IsKeyUp(KEY_DOWN) || IsKeyUp(KEY_S))
+        {
+            key_down = false;
         }
 
-        // Toggle debug info
-        if (IsKeyPressed(KEY_F1)) showLines = !showLines;
+        keys_tap_input = key_up * 0b10000 + key_down * 0b1000 + key_left * 0b100 + key_right * 0b10 + key_atack * 0b1;
 
-        // Update the lights and keep track if any were dirty so we know if we need to update the master light mask
-        bool dirtyLights = false;
-        for (int i = 0; i < MAX_LIGHTS; i++)
+
+        if(keys_tap_input != keys_tap_saved)
         {
-            if (UpdateLight(i, boxes, boxCount)) dirtyLights = true;
+
+            keys_tap_saved = keys_tap_input;
         }
 
-        // Update the light mask
-        if (dirtyLights)
+
+
+        // Camera target follows player
+        camera.target = (Vector2){ player.x + 20, player.y + 20 };
+
+        // Camera rotation controls
+        if (IsKeyDown(KEY_Q)) camera.rotation--;
+        else if (IsKeyDown(KEY_E)) camera.rotation++;
+
+        // Limit camera rotation to 80 degrees (-40 to 40)
+        if (camera.rotation > 40) camera.rotation = 60;
+        else if (camera.rotation < -40) camera.rotation = -60;
+
+        // Camera zoom controls
+        camera.zoom += ((float)GetMouseWheelMove()*0.05f);
+
+        if (camera.zoom > 3.0f) camera.zoom = 3.0f;
+        else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
+
+        // Camera reset (zoom and rotation)
+        if (IsKeyPressed(KEY_R))
         {
-            // Build up the light mask
-            BeginTextureMode(lightMask);
-            
-                ClearBackground(BLACK);
-
-                // Force the blend mode to only set the alpha of the destination
-                rlSetBlendFactors(RLGL_SRC_ALPHA, RLGL_SRC_ALPHA, RLGL_MIN);
-                rlSetBlendMode(BLEND_CUSTOM);
-
-                // Merge in all the light masks
-                for (int i = 0; i < MAX_LIGHTS; i++)
-                {
-                    if (lights[i].active) DrawTextureRec(lights[i].mask.texture, (Rectangle){ 0, 0, (float)GetScreenWidth(), -(float)GetScreenHeight() }, Vector2Zero(), WHITE);
-                }
-
-                rlDrawRenderBatchActive();
-
-                // Go back to normal blend
-                rlSetBlendMode(BLEND_ALPHA);
-            EndTextureMode();
+            camera.zoom = 1.0f;
+            camera.rotation = 0.0f;
         }
         //----------------------------------------------------------------------------------
 
@@ -299,44 +352,36 @@ int main(void)
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
-            ClearBackground(BLACK);
-            
-            // Draw the tile background
-            DrawTextureRec(backgroundTexture, (Rectangle){ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() }, Vector2Zero(), WHITE);
-            
-            // Overlay the shadows from all the lights
-            DrawTextureRec(lightMask.texture, (Rectangle){ 0, 0, (float)GetScreenWidth(), -(float)GetScreenHeight() }, Vector2Zero(), ColorAlpha(WHITE, showLines? 0.75f : 1.0f));
+            ClearBackground(RAYWHITE);
 
-            // Draw the lights
-            for (int i = 0; i < MAX_LIGHTS; i++)
-            {
-                if (lights[i].active) DrawCircle((int)lights[i].position.x, (int)lights[i].position.y, 10, (i == 0)? YELLOW : WHITE);
-            }
+            BeginMode2D(camera);
 
-            if (showLines)
-            {
-                for (int s = 0; s < lights[0].shadowCount; s++)
-                {
-                    DrawTriangleFan(lights[0].shadows[s].vertices, 4, DARKPURPLE);
-                }
+                DrawRectangle(-6000, 320, 13000, 8000, DARKGRAY);
 
-                for (int b = 0; b < boxCount; b++)
-                {
-                    if (CheckCollisionRecs(boxes[b],lights[0].bounds)) DrawRectangleRec(boxes[b], PURPLE);
+                for (int i = 0; i < MAX_BUILDINGS; i++) DrawRectangleRec(buildings[i], buildColors[i]);
 
-                    DrawRectangleLines((int)boxes[b].x, (int)boxes[b].y, (int)boxes[b].width, (int)boxes[b].height, DARKBLUE);
-                }
+                DrawRectangleRec(player, RED);
 
-                DrawText("(F1) Hide Shadow Volumes", 10, 50, 10, GREEN);
-            }
-            else
-            {
-                DrawText("(F1) Show Shadow Volumes", 10, 50, 10, GREEN);
-            }
+                DrawLine((int)camera.target.x, -screenHeight*10, (int)camera.target.x, screenHeight*10, GREEN);
+                DrawLine(-screenWidth*10, (int)camera.target.y, screenWidth*10, (int)camera.target.y, GREEN);
 
-            DrawFPS(screenWidth - 80, 10);
-            DrawText("Drag to move light #1", 10, 10, 10, DARKGREEN);
-            DrawText("Right click to add new light", 10, 30, 10, DARKGREEN);
+            EndMode2D();
+
+            DrawText("SCREEN AREA", 640, 10, 20, RED);
+
+            DrawRectangle(0, 0, screenWidth, 5, RED);
+            DrawRectangle(0, 5, 5, screenHeight - 10, RED);
+            DrawRectangle(screenWidth - 5, 5, 5, screenHeight - 10, RED);
+            DrawRectangle(0, screenHeight - 5, screenWidth, 5, RED);
+
+            DrawRectangle( 10, 10, 250, 113, Fade(SKYBLUE, 0.5f));
+            DrawRectangleLines( 10, 10, 250, 113, BLUE);
+
+            DrawText("Free 2d camera controls:", 20, 20, 10, BLACK);
+            DrawText("- Right/Left to move Offset", 40, 40, 10, DARKGRAY);
+            DrawText("- Mouse Wheel to Zoom in-out", 40, 60, 10, DARKGRAY);
+            DrawText("- A / S to Rotate", 40, 80, 10, DARKGRAY);
+            DrawText("- R to reset Zoom and Rotation", 40, 100, 10, DARKGRAY);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
@@ -344,13 +389,6 @@ int main(void)
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(backgroundTexture);
-    UnloadRenderTexture(lightMask);
-    for (int i = 0; i < MAX_LIGHTS; i++)
-    {
-        if (lights[i].active) UnloadRenderTexture(lights[i].mask);
-    }
-
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
