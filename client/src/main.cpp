@@ -19,11 +19,19 @@ extern "C" {
         std::cout << "Updated rectX: " << rectX << ", rectY: " << rectY << std::endl;
     }
 }
-
+bool key_up = false;
+bool key_down = false;
+bool key_left = false;
+bool key_right = false;
+bool last_key_up = false;
+bool last_key_down = false;
+bool last_key_left = false;
+bool last_key_right = false;
 // Log messages from JS
-EM_JS(void, js_send_control, (), {
+EM_JS(void, js_send_control, (bool up, bool down, bool left, bool right), {
+    console.log("la", up, down, left, right);
     if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-        const message = JSON.stringify({ action: "move_right" });
+        const message = JSON.stringify({ up: up, down: down, left: left, right: right });
         window.ws.send(message);
         console.log("Sent message to server: ", message);
     } else {
@@ -35,7 +43,8 @@ EM_JS(void, js_send_control, (), {
 // WebSocket open function
 EM_JS(void, js_open_ws, (), {
     // Create a global WebSocket connection
-    window.ws = new WebSocket("ws://localhost:8765");
+
+    window.ws = new WebSocket("ws://192.168.71.78:8765");
 
     ws.onopen = function () {
         console.log("Connected to WebSocket server");
@@ -73,9 +82,52 @@ int main() {
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        if (IsKeyDown(KEY_RIGHT)){
-            js_send_control();
+
+        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
+        {
+            key_up = true;
         }
+        else
+        {
+            key_up = false;
+        }
+        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
+        {
+            key_down = true;
+        }
+        else
+        {
+            key_down = false;
+        }
+        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+        {
+            key_left = true;
+        }
+        else
+        {
+            key_left = false;
+        }
+        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
+        {
+            key_right = true;
+        }
+        else
+        {
+            key_right = false;
+        }
+        if (key_up != last_key_up || key_down != last_key_down || key_left != last_key_left || key_right != last_key_right){
+            js_send_control(key_up, key_down, key_left, key_right);
+
+
+
+            last_key_up = key_up;
+            last_key_down = key_down;
+            last_key_left = key_left;
+            last_key_right = key_right;
+
+
+        }
+
         // Draw the rectangle based on received position
         DrawRectangle(static_cast<int>(rectX), static_cast<int>(rectY), 50, 50, BLUE);
 
