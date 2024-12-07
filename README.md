@@ -1,4 +1,8 @@
 # build client
+ - move to client dir
+```console
+cd client
+```
  - install [emscripten](https://emscripten.org/docs/getting_started/downloads.html#installation-instructions-using-the-emsdk-recommended)
  - install raylib
  ```console
