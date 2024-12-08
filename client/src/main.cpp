@@ -118,10 +118,9 @@ EM_JS(void, js_open_ws, (), {
 
 // Main entry point for Raylib
 int main() {
-    const int screenWidth = 800;
-    const int screenHeight = 600;
-
-    InitWindow(screenWidth, screenHeight, "Raylib WebSocket Example");
+    int screenWidth = GetMonitorWidth(0); // Get the primary monitor's width
+    int screenHeight = GetMonitorHeight(0); // Get the primary monitor's height
+    InitWindow(screenWidth, screenHeight, "Studyio");
     SetTargetFPS(60);
     Camera2D camera = { 0 };
     camera.target = {0,0};
