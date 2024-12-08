@@ -25,11 +25,12 @@ def calculatepos():
                 # Calculate new position based on movement
                 new_x = players[id]['x'] + speed * playersmove.get(id, [0, 0])[0]
                 new_y = players[id]['y'] + speed * playersmove.get(id, [0, 0])[1]
-
+                new_angle =  playersmove.get(id, [0, 0, 0])[2];
                 # Only apply position changes if they are different
-                if new_x != players[id]['x'] or new_y != players[id]['y']:
+                if new_x != players[id]['x'] or new_y != players[id]['y'] or new_angle != players[id]['y']:
                     players[id]['x'] = new_x
                     players[id]['y'] = new_y
+                    players[id]['angle'] = new_angle
 
 
 async def broadcast(message):
@@ -48,13 +49,18 @@ async def broadcast(message):
             connected_clients.remove(ws)
 
 
+def generate_unique_player_id():
+    while True:
+        player_id = int(uuid.uuid4().int % 1e3)  # Generate an ID in range [0, 999]
+        if player_id not in players:
+            return player_id
+
 async def handle_client(websocket):
     """
     Handles a single WebSocket client's communication.
     Assigns a unique ID, receives movement commands, and manages disconnects.
     """
-    # Assign a unique player ID
-    player_id = int(uuid.uuid4().int % 1e3)
+    player_id = generate_unique_player_id()
     welcome_message = json.dumps({"type": "welcome", "player_id": player_id})
     await websocket.send(welcome_message)
     print(f"Player {player_id} connected")
@@ -76,6 +82,7 @@ async def handle_client(websocket):
                 playersmove[player_id] = [
                     -data.get('left', 0) + data.get('right', 0),
                     -data.get('up', 0) + data.get('down', 0),
+                    data['angle']
                 ]
     except websockets.exceptions.ConnectionClosed as e:
         print(f"Connection closed for player {player_id}: {e}")

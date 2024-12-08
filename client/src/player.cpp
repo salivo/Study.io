@@ -8,7 +8,7 @@ void Player::setPosition(float _x, float _y) {
     y = _y;
 }
 void Player::draw() const{
-    DrawRectanglePro({x,y,50,50}, {0,0}, rotation, MAROON);
+    DrawRectanglePro({x,y,50,50}, {25,25}, rotation, MAROON);
 }
 
 Vector2 Player::getCenter() const{

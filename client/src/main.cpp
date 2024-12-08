@@ -1,3 +1,4 @@
+#include <cmath>
 #include <emscripten.h>
 #include <emscripten/val.h>
 #include <string>
@@ -23,7 +24,7 @@ int myuuid = 0;
 
 
 extern "C" {
-    void update_position(int playerId, float x, float y) {
+    void update_position(int playerId, float x, float y, float r) {
         if (players.find(playerId) == players.end()) {
             // Create a new player if not found
             players[playerId] = Player(x, y);
@@ -31,6 +32,7 @@ extern "C" {
         } else {
             // Update the existing player's position
             players[playerId].setPosition(x, y);
+            players[playerId].rotate(r);
         }
     }
 }
@@ -51,9 +53,9 @@ extern "C" {
 }
 
 // Log messages from JS
-EM_JS(void, js_send_control, (bool up, bool down, bool left, bool right), {
+EM_JS(void, js_send_control, (bool up, bool down, bool left, bool right, float angle), {
     if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-        const message = JSON.stringify({ up: up, down: down, left: left, right: right });
+        const message = JSON.stringify({ up: up, down: down, left: left, right: right, angle: angle});
         window.ws.send(message);
     } else {
         console.log("WebSocket not ready.");
@@ -80,9 +82,10 @@ EM_JS(void, js_open_ws, (), {
                     Module.ccall(
                         'update_position',
                         null,
-                        ['number', 'number', 'number'],
-                        [idnum, players[id].x, players[id].y]
+                        ['number', 'number', 'number', 'number'],
+                        [idnum, players[id].x, players[id].y, players[id].angle]
                     );
+                    console.log("angle ", players[id].x, players[id].y, players[id].angle);
                 }
             }
         } else if (jsonData.type === "disconnect") {
@@ -129,8 +132,11 @@ int main() {
     camera.zoom = 1.0f;
     // Open WebSocket connection
     js_open_ws();
-
+    Vector2 center = { screenWidth / 2.0f, screenHeight / 2.0f };
     while (!WindowShouldClose()) {
+        Vector2 mousePosition = GetMousePosition();
+        float last_angle;
+        float angle = atan2(mousePosition.y - center.y, mousePosition.x - center.x) * RAD2DEG;
         BeginDrawing();
             ClearBackground(RAYWHITE);
 
@@ -140,15 +146,20 @@ int main() {
                 key_left = IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A);
                 key_right = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D);
 
-                if (key_up != last_key_up || key_down != last_key_down || key_left != last_key_left || key_right != last_key_right) {
-                    js_send_control(key_up, key_down, key_left, key_right);
+                if (key_up != last_key_up ||
+                    key_down != last_key_down ||
+                    key_left != last_key_left ||
+                    key_right != last_key_right ||
+                    angle != last_angle
+                ) {
+                    js_send_control(key_up, key_down, key_left, key_right, angle);
                     last_key_up = key_up;
                     last_key_down = key_down;
                     last_key_left = key_left;
                     last_key_right = key_right;
+                    last_angle = angle;
                 }
                 camera.target = players[myuuid].getCenter();
-                players[myuuid].rotate(45.0);
                 BeginMode2D(camera);
                     for (const auto& [id, player] : players) {
                         player.draw();
