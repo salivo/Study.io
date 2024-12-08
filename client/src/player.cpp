@@ -8,10 +8,12 @@ void Player::setPosition(float _x, float _y) {
     y = _y;
 }
 void Player::draw() const{
-
-    DrawRectangle(static_cast<int>(x), static_cast<int>(y), 50, 50, BLUE);
+    DrawRectanglePro({x,y,50,50}, {0,0}, rotation, MAROON);
 }
 
 Vector2 Player::getCenter() const{
     return (Vector2){x, y};
+}
+void Player::rotate(float angle){
+    rotation = angle;
 }

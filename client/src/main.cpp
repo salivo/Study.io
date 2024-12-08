@@ -149,6 +149,7 @@ int main() {
                     last_key_right = key_right;
                 }
                 camera.target = players[myuuid].getCenter();
+                players[myuuid].rotate(45.0);
                 BeginMode2D(camera);
                     for (const auto& [id, player] : players) {
                         player.draw();

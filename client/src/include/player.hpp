@@ -6,6 +6,7 @@
 class Player {
 private:
     float x, y;
+    float rotation;
 public:
     Player() = default;
 
@@ -15,6 +16,7 @@ public:
     void setPosition(float x, float y);
     void draw() const;
     Vector2 getCenter() const;
+    void rotate(float angle);
 };
 
 #endif
