@@ -2,23 +2,12 @@
 #include <emscripten/val.h>
 #include <string>
 #include <iostream>
-#include <sstream> // For parsing the raw string
+#include <unordered_map>
+#include "include/player.hpp"
 #include "raylib.h"
 
 using namespace emscripten;
 
-// Variables to store the received rectangle position
-float rectX = 0.0f;
-float rectY = 0.0f;
-
-// Function exposed to JS to update rect position
-extern "C" {
-    void update_position(float x, float y) {
-        rectX = x;
-        rectY = y;
-        std::cout << "Updated rectX: " << rectX << ", rectY: " << rectY << std::endl;
-    }
-}
 bool key_up = false;
 bool key_down = false;
 bool key_left = false;
@@ -28,65 +17,51 @@ bool last_key_down = false;
 bool last_key_left = false;
 bool last_key_right = false;
 
+std::unordered_map<int, Player> players;
 
-class Player {
-private:
-    int id;        // Unique ID for the player
-    float x, y;    // Position of the player
-    std::string name; // Player's name
+int myuuid = 0;
 
-public:
-    // Constructor to initialize a new player
-    Player(int playerId, float startX, float startY, std::string playerName)
-        : id(playerId), x(startX), y(startY), name(playerName) {}
 
-    // Get player ID
-    int getId() const {
-        return id;
+extern "C" {
+    void update_position(int playerId, float x, float y) {
+        if (players.find(playerId) == players.end()) {
+            // Create a new player if not found
+            players[playerId] = Player(x, y);
+            std::cout << "Connected player with ID: " << playerId << std::endl;
+        } else {
+            // Update the existing player's position
+            players[playerId].setPosition(x, y);
+        }
     }
+}
 
-    // Get player position
-    std::pair<float, float> getPosition() const {
-        return {x, y};
+extern "C" {
+    void set_my_uuid(int playerId) {
+        myuuid = playerId;
     }
+}
 
-    // Get player name
-    std::string getName() const {
-        return name;
+extern "C" {
+    void delete_player(int playerId) {
+        if (players.find(playerId) != players.end()) {
+            players.erase(playerId);
+            std::cout << "Deleted player with ID: " << playerId << std::endl;
+        }
     }
-
-    // Move the player by a specified amount
-    void move(float dx, float dy) {
-        x += dx;
-        y += dy;
-    }
-
-    // Print player information
-    void printInfo() const {
-        std::cout << "Player " << id << " (" << name << ") is at position ("
-                  << x << ", " << y << ")." << std::endl;
-    }
-};
-
-
+}
 
 // Log messages from JS
 EM_JS(void, js_send_control, (bool up, bool down, bool left, bool right), {
-    console.log("la", up, down, left, right);
     if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         const message = JSON.stringify({ up: up, down: down, left: left, right: right });
         window.ws.send(message);
-        console.log("Sent message to server: ", message);
     } else {
         console.log("WebSocket not ready.");
     }
 });
 
-
 // WebSocket open function
 EM_JS(void, js_open_ws, (), {
-    // Create a global WebSocket connection
-
     window.ws = new WebSocket("ws://192.168.71.78:8765");
 
     ws.onopen = function () {
@@ -94,11 +69,41 @@ EM_JS(void, js_open_ws, (), {
     };
 
     ws.onmessage = function (event) {
-        console.log("Message received from server: ", event.data);
-
         const jsonData = JSON.parse(event.data);
-        if (jsonData.x !== undefined && jsonData.y !== undefined) {
-            Module._update_position(jsonData.x, jsonData.y);
+
+        if (jsonData.type === "positions") {
+            const players = jsonData.players;
+
+            for (const id in players) {
+                if (players.hasOwnProperty(id)) {
+                    const idnum = parseInt(id, 10);
+                    Module.ccall(
+                        'update_position',
+                        null,
+                        ['number', 'number', 'number'],
+                        [idnum, players[id].x, players[id].y]
+                    );
+                }
+            }
+        } else if (jsonData.type === "disconnect") {
+            const playerId = jsonData.player_id;
+            Module.ccall(
+                'delete_player',
+                null,
+                ['number'],
+                [playerId]
+            );
+            console.log(`Player ${playerId} disconnected.`);
+        } else if (jsonData.type === "welcome") {
+            const MyUuid = jsonData.player_id;
+            Module.ccall(
+                'set_my_uuid',
+                null,
+                ['number'],
+                [MyUuid]
+            );
+            console.log(`Player ${playerId} disconnected.`);
+            console.log(`My ID ${playerId}.`);
         }
     };
 
@@ -118,62 +123,37 @@ int main() {
 
     InitWindow(screenWidth, screenHeight, "Raylib WebSocket Example");
     SetTargetFPS(60);
-
+    Camera2D camera = { 0 };
+    camera.target = {0,0};
+    camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
     // Open WebSocket connection
     js_open_ws();
 
     while (!WindowShouldClose()) {
         BeginDrawing();
-        ClearBackground(RAYWHITE);
+            ClearBackground(RAYWHITE);
 
-        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
-        {
-            key_up = true;
-        }
-        else
-        {
-            key_up = false;
-        }
-        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
-        {
-            key_down = true;
-        }
-        else
-        {
-            key_down = false;
-        }
-        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
-        {
-            key_left = true;
-        }
-        else
-        {
-            key_left = false;
-        }
-        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
-        {
-            key_right = true;
-        }
-        else
-        {
-            key_right = false;
-        }
-        if (key_up != last_key_up || key_down != last_key_down || key_left != last_key_left || key_right != last_key_right){
-            js_send_control(key_up, key_down, key_left, key_right);
+                // Handle input
+                key_up = IsKeyDown(KEY_UP) || IsKeyDown(KEY_W);
+                key_down = IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S);
+                key_left = IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A);
+                key_right = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D);
 
-
-
-            last_key_up = key_up;
-            last_key_down = key_down;
-            last_key_left = key_left;
-            last_key_right = key_right;
-
-
-        }
-
-        // Draw the rectangle based on received position
-        DrawRectangle(static_cast<int>(rectX), static_cast<int>(rectY), 50, 50, BLUE);
-
+                if (key_up != last_key_up || key_down != last_key_down || key_left != last_key_left || key_right != last_key_right) {
+                    js_send_control(key_up, key_down, key_left, key_right);
+                    last_key_up = key_up;
+                    last_key_down = key_down;
+                    last_key_left = key_left;
+                    last_key_right = key_right;
+                }
+                camera.target = players[myuuid].getCenter();
+                BeginMode2D(camera);
+                    for (const auto& [id, player] : players) {
+                        player.draw();
+                    }
+                BeginMode2D(camera);
         EndDrawing();
     }
 
