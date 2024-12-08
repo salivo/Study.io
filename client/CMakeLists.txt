@@ -16,6 +16,13 @@ target_include_directories(client PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/websocketpp  # Ensure WebSocket++ headers are included
 )
 
+# Copy resources to the build directory
+file(COPY ${CMAKE_SOURCE_DIR}/resources DESTINATION ${CMAKE_BINARY_DIR})
+
+# Preload the copied resources folder
+target_link_options(client PUBLIC --preload-file resources)
+
+
 add_library(raylib STATIC IMPORTED)
 set_target_properties(raylib PROPERTIES
     IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/lib/raylib/src/libraylib.a"
